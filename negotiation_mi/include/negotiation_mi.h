@@ -18,10 +18,12 @@ private:
   ros::NodeHandle nh_, pnh_;
   ros::Subscriber current_loa_sub_, human_loa_sub_ , ai_loa_sub_;
   ros::Publisher loa_changed_pub_, negotiated_loa_pub_;
+  ros::Timer negotiation_algorithm_timer_;
 
   void currentLoaCallback(const std_msgs::Int8::ConstPtr& msg);
   void humanLoaCallback(const std_msgs::Int8::ConstPtr& msg);
   void aiLoaCallback(const std_msgs::Int8::ConstPtr& msg);
+  void timerNegotiationCallback(const ros::TimerEvent&);
 
   std_msgs::Int8 current_loa_, previous_loa_, negotiated_loa_;
 

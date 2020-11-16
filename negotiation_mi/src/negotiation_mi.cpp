@@ -23,10 +23,14 @@ NegotiationMI::NegotiationMI(ros::NodeHandle nh, ros::NodeHandle private_nh)
         // Publishers AKA ROS node outputs
         negotiated_loa_pub_ = nh_.advertise<std_msgs::Int8>("/negotiated_loa", 1);
 
+        // Negotiation algorithm main callback function based on a timer.
+        negotiation_algorithm_timer_ = nh_.createTimer(ros::Duration(0.2), &NegotiationMI::timerNegotiationCallback, this, false, false);
+
         current_loa_.data = 0; // initializing to "stop" mode
         human_suggested_loa_ = 0;
         ai_suggested_loa_ = 0;
         loa_changed_ = false;
+        negotiation_algorithm_timer_.start(); 
 }
 
 NegotiationMI::~NegotiationMI()
@@ -60,11 +64,15 @@ void NegotiationMI::aiLoaCallback(const std_msgs::Int8::ConstPtr &msg)
 }
 
 // The main negotiation algorithm were magic happens
-int NegotiationMI::negotiationAlgorithm()
+// Negotiation algorithm main callback function based on a timer.
+void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent&)
 {
 
-        // QUESTIONS:
-        // 1 - when negotiation algorithm starts? Everytime there is a LOA switch different than current LOA?
+// initiating local variables just to be on the safe side
+ int human_suggested_loa = human_suggested_loa_;
+ int ai_suggested_loa = ai_suggested_loa_ ;
+ int curent_loa = current_loa_.data ; 
+
 
         if (human_changed_LOA)
         {
@@ -97,6 +105,6 @@ int NegotiationMI::negotiationAlgorithm()
                 start negotiating
         }
 
-                // this can istead be publish the resul in ROS t
+                // this can istead be publish the result in ROS t
                 return something;
 }
