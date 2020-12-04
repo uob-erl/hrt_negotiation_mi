@@ -34,8 +34,8 @@ NegotiationMI::NegotiationMI(ros::NodeHandle nh, ros::NodeHandle private_nh)
 	negotiation_algorithm_timer_ = nh_.createTimer(ros::Duration(0.2), &NegotiationMI::timerNegotiationCallback, this, false, false);
 
 	// negotiation specifc initializations. These can be initialized via .launch file if needed instead hard coding.
-	negotiation_deadline_ = 3;
-	concession_rate_ = 0.2;
+	negotiation_deadline_ = 6; // this influenced by delta
+	concession_rate_ = 0.2; // This rate mimics the human based on prior data and it means how "pressure feels to concnet as deadline approaches"
 
 	/* loa states definition
 			-1 	no input
@@ -64,6 +64,7 @@ NegotiationMI::~NegotiationMI()
 void NegotiationMI::currentLoaCallback(const std_msgs::Int8::ConstPtr &msg)
 {
 	current_loa_ = msg->data;
+	ROS_INFO("current_loa: %d", current_loa_);
 }
 
 // This reads and stores the up-to-date loa utility delta and enables negotiation
@@ -76,7 +77,8 @@ void NegotiationMI::loaUtilityDeltaCallback(const std_msgs::Float64::ConstPtr &m
 	 after a negotiation has finished, negotiation is disabled and can only be reinitialized after a change of the situation
 	*/
 
-	loa_utility_delta_ = (double)msg->data;
+	loa_utility_delta_ = msg->data;
+	ROS_INFO("loa_utility_delta: %f", loa_utility_delta_);
 	negotiation_enabled_ = true;
 }
 
@@ -84,12 +86,14 @@ void NegotiationMI::loaUtilityDeltaCallback(const std_msgs::Float64::ConstPtr &m
 void NegotiationMI::humanLoaCallback(const std_msgs::Int8::ConstPtr &msg)
 {
 	human_suggested_loa_ = msg->data;
+	ROS_INFO("human_suggested_loa: %d", human_suggested_loa_);
 }
 
 // This reads and stores the up-to-date LOA suggested by the AI
 void NegotiationMI::aiLoaCallback(const std_msgs::Int8::ConstPtr &msg)
 {
 	ai_suggested_loa_ = msg->data;
+	ROS_INFO("ai_suggested_loa: %d", ai_suggested_loa_);
 }
 
 // The main negotiation algorithm were magic happens
@@ -104,9 +108,6 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 	double loa_utility_delta = loa_utility_delta_;
 	bool negotiation_enabled = negotiation_enabled_;
 
-	// When that should be? I guess when we entered the specifc current negotiation?
-	double time_negotiation_started = ros::Time::now().toSec(); // if I understood correctly this should go to the point when we first entered current negotiation.
-
 	// ******case: active negotiation (if negotiation is enabled and active)
 	// -> negotiation round started: check deadline, opponentBehavior and target utility
 	if (negotiation_is_active_)
@@ -115,10 +116,10 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 		int agreed_loa = 0;
 
 		// differentiate: human started negotiation
-		if (human_suggested_loa_history_)
+		if (human_suggested_loa_history_ > 0)
 		{
 			// check if human gave in; equal to changing offer
-			if (human_suggested_loa && human_suggested_loa != human_suggested_loa_history_)
+			if (human_suggested_loa > 0 && human_suggested_loa != human_suggested_loa_history_)
 			{
 				agreed_loa = human_suggested_loa;
 			}
@@ -126,12 +127,14 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 			else
 			{
 				// determine duration since negotiation start
-				double current_negotiation_duration = time_negotiation_started - ros::Time::now().toSec();
+				double current_negotiation_duration = ros::Time::now().toSec() - time_negotiation_started_;
+				ROS_INFO("current_negotiation_duration: %f",current_negotiation_duration);
 
 				// determine if target utility reached other option's utility
 				if (abs(loa_utility_delta) > 0)
 				{
-					if ((double)(1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) < (double)(1 - abs(loa_utility_delta)))
+					ROS_INFO("Has the delta deminsihed: %f", (1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) ) ;
+					if ( (1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) < (1 - abs(loa_utility_delta)))
 					{
 						agreed_loa = human_suggested_loa_history_;
 					}
@@ -147,7 +150,9 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 		else // automation started negotiation
 		{
 			// determine duration since negotiation start
-			double current_negotiation_duration = time_negotiation_started - ros::Time::now().toSec();
+			double current_negotiation_duration = ros::Time::now().toSec() - time_negotiation_started_;
+			ROS_INFO("current_negotiation_duration: %f",current_negotiation_duration);
+			
 
 			// check if deadline is reached
 			if (current_negotiation_duration > negotiation_deadline_)
@@ -171,11 +176,12 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 			}
 		}
 		// if agreement found or deadline reached terminate negotiation
-		if (agreed_loa)
+		if (agreed_loa > 0)
 		{
 			// publish agreed loa
 			negotiated_loa_.data = agreed_loa;
 			negotiated_loa_pub_.publish(negotiated_loa_);
+			ROS_INFO("negotiated_loa: %d", negotiated_loa_.data);
 
 			// reset variables
 			negotiation_is_active_ = false;
@@ -193,21 +199,25 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 	else if (negotiation_enabled)
 	{
 		// human is initiating negotiation
-		if (human_suggested_loa && human_suggested_loa != current_loa)
+		if (human_suggested_loa>0 && (human_suggested_loa != current_loa) )
 		{
 			negotiation_is_active_ = true;
 			//time_init_ = ros::Time::now(); // comenting this out for now in order to compile
+			time_negotiation_started_ = ros::Time::now().toSec();
+			ROS_INFO("time_negotiation_started_: %f", time_negotiation_started_);
+			
 			human_suggested_loa_history_ = human_suggested_loa;
 		}
 		// automation is initiating negotiation
-		else if (ai_suggested_loa && ai_suggested_loa != current_loa)
+		else if ( ai_suggested_loa>0 && (ai_suggested_loa != current_loa) )
 		{
 			negotiation_is_active_ = true;
 			/// time_init_ = ros::Time::now();  // comenting this out for now in order to compile
+			time_negotiation_started_ = ros::Time::now().toSec();
+			ROS_INFO("time_negotiation_started_: %f", time_negotiation_started_);
 			ai_suggested_loa_history_ = ai_suggested_loa_;
 		}
 	}
-
 
 	// ****case: awaiting enabling of negotiation (if negotiation not enabled and not active)
 	// -> reset all values except of loa_utility_delta_

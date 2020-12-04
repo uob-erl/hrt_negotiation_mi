@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <!-- joy node for operator's joystick input-->
+  <node respawn="true" pkg="joy" type="joy_node" name="joy_node">
+    <param name="dev" type="string" value="/dev/input/js0"/>
+    <param name="deadzone" value="0.15"/>
+  </node>
+  
+  <!-- teleoperation node for actuall commands -->
+  <node pkg="mixed_initiative_teleop" type="mixed_initiative_teleop" name="mi_teleop" output="screen">
+  <remap from="/loa" to="/human_suggested_loa"/>
+  </node>
+
+</launch>

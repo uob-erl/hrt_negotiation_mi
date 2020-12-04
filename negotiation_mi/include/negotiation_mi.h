@@ -38,7 +38,7 @@ private:
   */
   int human_suggested_loa_, ai_suggested_loa_, current_loa_;
   int human_suggested_loa_history_, ai_suggested_loa_history_;
-  double loa_utility_delta_, negotiation_deadline_;
+  double loa_utility_delta_, negotiation_deadline_ , time_negotiation_started_  ;
   bool negotiation_is_active_, negotiation_enabled_, concession_rate_, loa_changed_; 
     
 
