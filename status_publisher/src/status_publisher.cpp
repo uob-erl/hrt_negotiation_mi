@@ -27,23 +27,27 @@ private:
 ros::NodeHandle nh_;
 image_transport::ImageTransport it_;
 image_transport::Publisher loa_pub_, nav_status_pub_;
+image_transport::Publisher neg_auto_pub_, neg_teleop_pub_;
 ros::Publisher deadline_pub_; /// conventional publisher not explicitly for ImgageTransport: problem?
 ros::Subscriber loa_sub_, nav_status_sub_, nav_result_sub_ ;
-ros::Subscriber negotiation_time_sub_;
+ros::Subscriber negotiation_status_sub_, negotiation_time_sub_;
+ros::Subscriber negotiated_loa_sub_, human_suggested_loa_sub , ai_suggested_loa_sub_;
 ros::Timer timerPubStatus_;
 
 int nav_status_, nav_result_;
-std::string pathTeleop_, pathAuto_,pathStop_, pathCanceled_;
-std::string pathActive_, pathSucceeded_,pathAborted_;
-cv_bridge::CvImage cvAuto_, cvTeleop_, cvStop_, cvCanceled_;       // intermediate cv_bridge images
-cv_bridge::CvImage cvActive_, cvSucceeded_, cvAborted_;
-sensor_msgs::Image rosImgAuto_, rosImgTeleop_, rosImgStop_, rosImgCanceled_;
-     // ROS msg images
+// ROS msg images
+sensor_msgs::Image rosImgAuto_, rosImgTeleop_, rosImgStop_, rosImgCanceled_; 
 sensor_msgs::Image rosImgActive_, rosImgSucceeded_, rosImgAborted_;
+sensor_msgs::Image rosImgTeleopDis_, rosImgTeleopEn_, rosImgTeleopAi_, rosImgTeleopHuman_, rosImgTeleopNegLoa_;
+sensor_msgs::Image rosImgAutoDis_, rosImgAutoEn_, rosImgAutoAi_, rosImgAutoHuman_, rosImgAutoNegLoa_;
 
 void loaCallBack(const std_msgs::Int8::ConstPtr& loa);
 void nav_statusCallBack(const actionlib_msgs::GoalStatusArray::ConstPtr& nav_status);
 void nav_resultCallBack(const move_base_msgs::MoveBaseActionResult::ConstPtr& nav_result);
+void humanLoaCallback(const std_msgs::Int8::ConstPtr& msg);
+void aiLoaCallback(const std_msgs::Int8::ConstPtr& msg);
+void negStatusCallback(const std_msgs::Bool::ConstPtr& msg);
+void negLoaCallback(const std_msgs::Int8::ConstPtr& msg);
 void deadlineCallBack(const std_msgs::Float64::ConstPtr& msg);
 void timerPubStatusCallback(const ros::TimerEvent&);
 
@@ -70,8 +74,18 @@ StatusPublisher::StatusPublisher() : it_(nh_)
         // publishers
         loa_pub_ = it_.advertise("/robot_status/loa", 1, true);
         nav_status_pub_ = it_.advertise("/robot_status/nav",1, true);
-        deadline_pub_ = nh_.advertise<sensor_msgs::Image>("/negotiation_deadline", 1);
+        deadline_pub_ = nh_.advertise<sensor_msgs::Image>("/nemi/hmi_neg_deadline", 1);
+		neg_Auti_ = it_.advertise("/robot_status/nav",1, true);
+		neg_auto_pub_ = it_.advertise("/nemi/hmi_auto",1, true);
+		neg_teleop_pub_ = it_.advertise("/nemi/hmi_teleop",1, true);
 		timerPubStatus_ = nh_.createTimer(ros::Duration(0.100), &StatusPublisher::timerPubStatusCallback, this);
+
+		// temporary path variables
+		std::string pathTeleop_, pathAuto_,pathStop_, pathCanceled_;
+		std::string pathActive_, pathSucceeded_,pathAborted_;
+		std::string pathTeleopDis_, pathTeleopEn_, pathTeleopAi_, pathTeleopHuman_, pathTeleopNegLoa_;
+		std::string pathAutoDis_, pathAutoEn_, pathAutoAi_, pathAutoHuman_, pathAutoNegLoa_;
+		
 
         // Path where the images are
         pathTeleop_ = ros::package::getPath("status_publisher");
@@ -91,10 +105,39 @@ StatusPublisher::StatusPublisher() : it_(nh_)
 
         pathAborted_ = ros::package::getPath("status_publisher");
         pathAborted_.append("/images/aborted.png");
-
    
         pathCanceled_ = ros::package::getPath("status_publisher");
         pathCanceled_.append("/images/canceled.png");
+		
+		pathTeleopDis_ = ros::package::getPath("status_publisher");
+        pathTeleopDis_.append("/images/teleop_gray.png");
+		
+		pathTeleopEn_ = ros::package::getPath("status_publisher");
+        pathTeleopEn_.append("/images/teleop_lightblue.png");
+		
+		pathTeleopAi_ = ros::package::getPath("status_publisher");
+        pathTeleopAi_.append("/images/teleop_blue.png");
+		
+		pathTeleopHuman_ = ros::package::getPath("status_publisher");
+        pathTeleopHuman_.append("/images/teleop_orange.png");
+		
+		pathTeleopNegLoa_ = ros::package::getPath("status_publisher");
+        pathTeleopNegLoa_.append("/images/teleop_green.png");
+		
+		pathAutoDis_ = ros::package::getPath("status_publisher");
+        pathAutoDis_.append("/images/auto_gray.png");
+		
+		pathAutoEn_ = ros::package::getPath("status_publisher");
+        pathAutoEn_.append("/images/auto_lightblue.png");
+		
+		pathAutoAi_ = ros::package::getPath("status_publisher");
+        pathAutoAi_.append("/images/auto_blue.png");
+		
+		pathAutoHuman_ = ros::package::getPath("status_publisher");
+        pathAutoHuman_.append("/images/auto_orange.png");
+		
+		pathAutoNegLoa_ = ros::package::getPath("status_publisher");
+        pathAutoNegLoa_.append("/images/auto_green.png");
 
 
         // Safety Check if actually the image is there and loaded
@@ -116,13 +159,47 @@ StatusPublisher::StatusPublisher() : it_(nh_)
         else if ( cv::imread(pathAborted_.c_str()).empty() )
                 ROS_FATAL("Aborted image was not loaded. Could not be found on %s", pathAborted_.c_str());
 
-
         else if ( cv::imread(pathCanceled_.c_str()).empty() )
                 ROS_FATAL("Goal cancel image was not loaded. Could not be found on %s", pathCanceled_.c_str());
-
-        else
+		
+		else if (cv::imread(pathTeleopDis_.c_str()).empty() )
+                ROS_FATAL("Teleop Dis image was not loaded. Could not be found on %s", pathTeleopDis_.c_str());
+				
+		else if (cv::imread(pathTeleopEn_.c_str()).empty() )
+                ROS_FATAL("Teleop En image was not loaded. Could not be found on %s", pathTeleopEn_.c_str());
+				
+		else if (cv::imread(pathTeleopAi_.c_str()).empty() )
+                ROS_FATAL("Teleop Ai image was not loaded. Could not be found on %s", pathTeleopAi_.c_str());
+				
+		else if (cv::imread(pathTeleopHuman_.c_str()).empty() )
+                ROS_FATAL("Teleop Human image was not loaded. Could not be found on %s", pathTeleopHuman_.c_str());
+				
+		else if (cv::imread(pathTeleopNegLoa_.c_str()).empty() )
+                ROS_FATAL("Teleop Neg Loa image was not loaded. Could not be found on %s", pathTeleopNegLoa_.c_str());
+				
+		else if (cv::imread(pathAutoDis_.c_str()).empty() )
+                ROS_FATAL("Auto Dis image was not loaded. Could not be found on %s", pathAutoDis_.c_str());
+				
+		else if (cv::imread(pathAutoEn_.c_str()).empty() )
+                ROS_FATAL("Auto En image was not loaded. Could not be found on %s", pathAutoEn_.c_str());
+				
+		else if (cv::imread(pathAutoAi_.c_str()).empty() )
+                ROS_FATAL("Auto Ai image was not loaded. Could not be found on %s", pathAutoAi_.c_str());
+				
+		else if (cv::imread(pathAutoHuman_.c_str()).empty() )
+                ROS_FATAL("Auto Human image was not loaded. Could not be found on %s", pathAutoHuman_.c_str());
+				
+		else if (cv::imread(pathAutoNegLoa_.c_str()).empty() )
+                ROS_FATAL("Auto Neg Loa image was not loaded. Could not be found on %s", pathAutoNegLoa_.c_str());
+				
+		else
                 ROS_INFO("All images loaded successfuly");
 
+		// temporary cv_bridge images
+		cv_bridge::CvImage cvAuto_, cvTeleop_, cvStop_, cvCanceled_;       
+		cv_bridge::CvImage cvActive_, cvSucceeded_, cvAborted_;
+		cv_bridge::CvImage cvTeleopDis_, cvTeleopEn_, cvTeleopAi_, cvTeleopHuman_, cvTeleopNegLoa_;
+		cv_bridge::CvImage cvAutoDis_, cvAutoEn_, cvAutoAi_, cvAutoHuman_, cvAutoNegLoa_;
 
         // Load auto image with openCv
         cvAuto_.image = cv::imread(pathAuto_.c_str());
@@ -142,11 +219,39 @@ StatusPublisher::StatusPublisher() : it_(nh_)
         // Load Aborted image with openCv
         cvAborted_.image = cv::imread(pathAborted_.c_str());
         cvAborted_.encoding = sensor_msgs::image_encodings::BGR8;
-      
-       
-        // Load Cancel goal image with openCv
+		// Load Cancel goal image with openCv
         cvCanceled_.image = cv::imread(pathCanceled_.c_str());
         cvCanceled_.encoding = sensor_msgs::image_encodings::BGR8;
+		// Load Teleop Dis image with openCv
+        cvTeleopDis_.image = cv::imread(pathTeleopDis_.c_str());
+        cvTeleopDis_.encoding = sensor_msgs::image_encodings::BGR8;
+		// Load Teleop En image with openCv
+        cvTeleopEn_.image = cv::imread(pathTeleopEn_.c_str());
+        cvTeleopEn_.encoding = sensor_msgs::image_encodings::BGR8;
+		// Load Teleop Ai image with openCv
+        cvTeleopAi_.image = cv::imread(pathTeleopAi_.c_str());
+        cvTeleopAi_.encoding = sensor_msgs::image_encodings::BGR8;
+		// Load Teleop Human image with openCv
+        cvTeleopHuman_.image = cv::imread(pathTeleopHuman_.c_str());
+        cvTeleopHuman_.encoding = sensor_msgs::image_encodings::BGR8;
+		// Load Teleop Neg Loa image with openCv
+        cvTeleopNegLoa_.image = cv::imread(pathTeleopNegLoa_.c_str());
+        cvTeleopNegLoa_.encoding = sensor_msgs::image_encodings::BGR8;
+		// Load auto Dis image with openCv
+        cvAutoDis_.image = cv::imread(pathAutoDis_.c_str());
+        cvAutoDis_.encoding = sensor_msgs::image_encodings::BGR8;
+		// Load auto En image with openCv
+        cvAutoEn_.image = cv::imread(pathAutoEn_.c_str());
+        cvAutoEn_.encoding = sensor_msgs::image_encodings::BGR8;
+		// Load auto Ai image with openCv
+        cvAutoAi_.image = cv::imread(pathAutoAi_.c_str());
+        cvAutoAi_.encoding = sensor_msgs::image_encodings::BGR8;
+		// Load auto Human image with openCv
+        cvAutoHuman_.image = cv::imread(pathAutoHuman_.c_str());
+        cvAutoHuman_.encoding = sensor_msgs::image_encodings::BGR8;
+		// Load auto Neg Loa image with openCv
+        cvAutoNegLoa_.image = cv::imread(pathAutoNegLoa_.c_str());
+        cvAutoNegLoa_.encoding = sensor_msgs::image_encodings::BGR8;
 
         // convert to ROS image type
         cvAuto_.toImageMsg(rosImgAuto_);
@@ -156,10 +261,22 @@ StatusPublisher::StatusPublisher() : it_(nh_)
         cvSucceeded_.toImageMsg(rosImgSucceeded_);
         cvAborted_.toImageMsg(rosImgAborted_);
         cvCanceled_.toImageMsg(rosImgCanceled_);
+		cvTeleopDis_.toImageMsg(rosImgTeleopDis_);
+		cvTeleopEn_.toImageMsg(rosImgTeleopEn_);
+		cvTeleopAi_.toImageMsg(rosImgTeleopAi_);
+		cvTeleopHuman_.toImageMsg(rosImgTeleopHuman_);
+		cvTeleopNegLoa_.toImageMsg(rosImgTeleopNegLoa_);
+		cvAutoDis_.toImageMsg(rosImgAutoDis_);
+		cvAutoEn_.toImageMsg(rosImgAutoEn_);
+		cvAutoAi_.toImageMsg(rosImgAutoAi_);
+		cvAutoHuman_.toImageMsg(rosImgAutoHuman_);
+		cvAutoNegLoa_.toImageMsg(rosImgAutoNegLoa_);
 
         // Publish the default mode
         loa_pub_.publish(rosImgStop_);
         nav_status_pub_.publish(rosImgStop_);
+		neg_auto_pub_.publish(rosImgAutoNegLoa_); //assuming simulation starts in autonomy
+		neg_teleop_pub_.publish(rosImgTeleopDis_);
 }
 
 
@@ -203,6 +320,64 @@ void StatusPublisher::nav_statusCallBack(const actionlib_msgs::GoalStatusArray::
 void StatusPublisher::nav_resultCallBack(const move_base_msgs::MoveBaseActionResult::ConstPtr& nav_result)
 {
         nav_result_ = nav_result->status.status;
+}
+
+
+// displays human negotiation inputs
+void humanLoaCallback(const std_msgs::Int8::ConstPtr& msg)
+{
+	if (msg->data == 1)
+	{
+		neg_auto_pub_.publish(rosImgAutoHuman_);
+		neg_teleop_pub_.publish(rosImgTeleopAi_);
+	}
+	else if (msg->data == 2)
+	{
+		neg_teleop_pub_.publish(rosImgTeleopHuman_);
+		neg_auto_pub_.publish(rosImgAutoAi_);
+	}
+}
+
+
+// displays ai negotiation inputs
+void aiLoaCallback(const std_msgs::Int8::ConstPtr& msg);
+{
+	if (msg->data == 1)
+	{
+		neg_auto_pub_.publish(rosImgAutoAi_);
+	}
+	else if (msg->data == 2)
+	{
+		neg_teleop_pub_.publish(rosImgTeleopAi_);
+	}
+}
+
+
+// displays enabled & disabled negotiation interface
+void negStatusCallback(const std_msgs::Bool::ConstPtr& msg);
+{
+	if (msg->data)
+	{
+		neg_auto_pub_.publish(rosImgAutoEn_);
+		neg_teleop_pub_.publish(rosImgTeleopEn_);
+	}
+}
+
+
+// displays negotiated = chosen LOA
+void negLoaCallback(const std_msgs::Int8::ConstPtr& msg);
+{
+	if (msg->data == 1)
+	{
+		neg_auto_pub_.publish(rosImgAutoNegLoa_);
+		neg_teleop_pub_.publish(rosImgTeleopDis_);
+	}
+	else if (msg->data == 2)
+	{
+		neg_teleop_pub_.publish(rosImgTeleopNegLoa_);
+		neg_auto_pub_.publish(rosImgAutoDis_);
+	}
+	/// currently negotiated shown till new negotiation is enabled -> problem?
 }
 
 

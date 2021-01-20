@@ -19,7 +19,7 @@ public:
 private:
   ros::NodeHandle nh_, pnh_;
   ros::Subscriber current_loa_sub_, loa_utility_delta_sub_, human_suggested_loa_sub , ai_suggested_loa_sub_;
-  ros::Publisher negotiation_time_pub_, negotiated_loa_pub_;
+  ros::Publisher negotiation_status_pub_, negotiation_time_pub_, negotiated_loa_pub_;
   ros::Timer negotiation_algorithm_timer_;
 
   void currentLoaCallback(const std_msgs::Int8::ConstPtr& msg);
@@ -28,6 +28,7 @@ private:
   void aiLoaCallback(const std_msgs::Int8::ConstPtr& msg);
   void timerNegotiationCallback(const ros::TimerEvent&);
 
+  std_msgs::Bool negotiation_status_;
   std_msgs::Int8 negotiated_loa_;
   std_msgs::Float64 negotiation_time_;
   

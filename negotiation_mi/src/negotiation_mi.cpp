@@ -28,6 +28,7 @@ NegotiationMI::NegotiationMI(ros::NodeHandle nh, ros::NodeHandle private_nh)
 	ai_suggested_loa_sub_ = nh_.subscribe("/ai_suggested_loa", 5, &NegotiationMI::aiLoaCallback, this);
 
 	// Publishers AKA ROS node outputs
+	negotiation_status_pub_ = nh_.advertise<std_msgs::Bool>("/nemi/negotiation_enabled", 1);
 	negotiated_loa_pub_ = nh_.advertise<std_msgs::Int8>("/nemi/negotiated_loa", 1);
 	negotiation_time_pub_ = nh_.advertise<std_msgs::Float64>("/nemi/negotiation_time", 1);
 
@@ -52,6 +53,7 @@ NegotiationMI::NegotiationMI(ros::NodeHandle nh, ros::NodeHandle private_nh)
 	ai_suggested_loa_history_ = -1;
 	negotiation_enabled_ = false;
 	negotiation_is_active_ = false;
+	negotiation_status_.data = negotiation_enabled_;
 	negotiation_algorithm_timer_.start();
 }
 
@@ -199,6 +201,11 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 			ai_suggested_loa_ = -1;
 			human_suggested_loa_history_ = -1;
 			ai_suggested_loa_history_ = -1;
+			
+			// publish negotiation disabled
+			negotiation_status_.data = negotiation_enabled_;
+			negotiation_status_pub_.publish(negotiation_status_);
+			ROS_INFO("negotiation_enabled: %d", negotiation_status_.data);
 		}
 	}
 
@@ -206,6 +213,14 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 	// -> no negotiation is running: check human offer and automation offer
 	else if (negotiation_enabled)
 	{
+		// publish negotiation enabled once
+		if (~negotiation_status_.data)
+		{
+			negotiation_status_.data = negotiation_enabled;
+			negotiation_status_pub_.publish(negotiation_status_);
+			ROS_INFO("negotiation_enabled: %d", negotiation_status_.data);
+		}
+			
 		// human is initiating negotiation
 		if (human_suggested_loa>0 && (human_suggested_loa != current_loa) )
 		{
