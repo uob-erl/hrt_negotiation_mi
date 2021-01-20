@@ -28,7 +28,7 @@ private:
   void aiLoaCallback(const std_msgs::Int8::ConstPtr& msg);
   void timerNegotiationCallback(const ros::TimerEvent&);
 
-  std_msgs::Int8 previous_loa_, negotiated_loa_;
+  std_msgs::Int8 negotiated_loa_;
   
   /* loa states definition:
 		-1 	no input
@@ -38,8 +38,9 @@ private:
   */
   int human_suggested_loa_, ai_suggested_loa_, current_loa_;
   int human_suggested_loa_history_, ai_suggested_loa_history_;
-  double loa_utility_delta_, negotiation_deadline_ , time_negotiation_started_  ;
-  bool negotiation_is_active_, negotiation_enabled_, concession_rate_, loa_changed_; 
+  double loa_utility_delta_, concession_rate_;
+  double negotiation_deadline_, time_negotiation_started_;
+  bool negotiation_is_active_, negotiation_enabled_; 
     
 
 };

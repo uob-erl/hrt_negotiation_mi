@@ -28,7 +28,7 @@ NegotiationMI::NegotiationMI(ros::NodeHandle nh, ros::NodeHandle private_nh)
 	ai_suggested_loa_sub_ = nh_.subscribe("/ai_suggested_loa", 5, &NegotiationMI::aiLoaCallback, this);
 
 	// Publishers AKA ROS node outputs
-	negotiated_loa_pub_ = nh_.advertise<std_msgs::Int8>("/negotiated_loa", 1);
+	negotiated_loa_pub_ = nh_.advertise<std_msgs::Int8>("/nemi/negotiated_loa", 1);
 
 	// Negotiation algorithm main callback function based on a timer.
 	negotiation_algorithm_timer_ = nh_.createTimer(ros::Duration(0.2), &NegotiationMI::timerNegotiationCallback, this, false, false);
@@ -49,7 +49,6 @@ NegotiationMI::NegotiationMI(ros::NodeHandle nh, ros::NodeHandle private_nh)
 	ai_suggested_loa_ = -1;
 	human_suggested_loa_history_ = -1;
 	ai_suggested_loa_history_ = -1;
-	loa_changed_ = false;
 	negotiation_enabled_ = false;
 	negotiation_is_active_ = false;
 	negotiation_algorithm_timer_.start();
@@ -133,7 +132,7 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 				// determine if target utility reached other option's utility
 				if (abs(loa_utility_delta) > 0)
 				{
-					ROS_INFO("Has the delta deminsihed: %f", (1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) ) ;
+					ROS_INFO("Has the delta deminished: %f", (1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) ) ;
 					if ( (1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) < (1 - abs(loa_utility_delta)))
 					{
 						agreed_loa = human_suggested_loa_history_;
@@ -202,7 +201,6 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 		if (human_suggested_loa>0 && (human_suggested_loa != current_loa) )
 		{
 			negotiation_is_active_ = true;
-			//time_init_ = ros::Time::now(); // comenting this out for now in order to compile
 			time_negotiation_started_ = ros::Time::now().toSec();
 			ROS_INFO("time_negotiation_started_: %f", time_negotiation_started_);
 			
@@ -212,7 +210,6 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 		else if ( ai_suggested_loa>0 && (ai_suggested_loa != current_loa) )
 		{
 			negotiation_is_active_ = true;
-			/// time_init_ = ros::Time::now();  // comenting this out for now in order to compile
 			time_negotiation_started_ = ros::Time::now().toSec();
 			ROS_INFO("time_negotiation_started_: %f", time_negotiation_started_);
 			ai_suggested_loa_history_ = ai_suggested_loa_;
