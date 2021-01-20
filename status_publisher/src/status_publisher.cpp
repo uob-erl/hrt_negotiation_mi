@@ -1,8 +1,11 @@
 ﻿
 #include <ros/ros.h>
 #include <image_transport/image_transport.h>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
 #include <std_msgs/Int8.h>
 #include <actionlib_msgs/GoalStatusArray.h>
@@ -24,7 +27,9 @@ private:
 ros::NodeHandle nh_;
 image_transport::ImageTransport it_;
 image_transport::Publisher loa_pub_, nav_status_pub_;
+ros::Publisher deadline_pub_; /// conventional publisher not explicitly for ImgageTransport: problem?
 ros::Subscriber loa_sub_, nav_status_sub_, nav_result_sub_ ;
+ros::Subscriber negotiation_time_sub_;
 ros::Timer timerPubStatus_;
 
 int nav_status_, nav_result_;
@@ -39,6 +44,7 @@ sensor_msgs::Image rosImgActive_, rosImgSucceeded_, rosImgAborted_;
 void loaCallBack(const std_msgs::Int8::ConstPtr& loa);
 void nav_statusCallBack(const actionlib_msgs::GoalStatusArray::ConstPtr& nav_status);
 void nav_resultCallBack(const move_base_msgs::MoveBaseActionResult::ConstPtr& nav_result);
+void deadlineCallBack(const std_msgs::Float64::ConstPtr& msg);
 void timerPubStatusCallback(const ros::TimerEvent&);
 
 
@@ -59,11 +65,13 @@ StatusPublisher::StatusPublisher() : it_(nh_)
                                                                           &StatusPublisher::nav_statusCallBack, this);
         nav_result_sub_ = nh_.subscribe<move_base_msgs::MoveBaseActionResult>("/move_base/result", 1,
                                                                               &StatusPublisher::nav_resultCallBack,this);
+		negotiation_time_sub_ = nh_.subscribe<std_msgs::Float64>("/nemi/negotiation_time", 1, &StatusPublisher::deadlineCallBack, this);
 
         // publishers
         loa_pub_ = it_.advertise("/robot_status/loa", 1, true);
         nav_status_pub_ = it_.advertise("/robot_status/nav",1, true);
-        timerPubStatus_ = nh_.createTimer(ros::Duration(0.100), &StatusPublisher::timerPubStatusCallback, this);
+        deadline_pub_ = nh_.advertise<sensor_msgs::Image>("/negotiation_deadline", 1);
+		timerPubStatus_ = nh_.createTimer(ros::Duration(0.100), &StatusPublisher::timerPubStatusCallback, this);
 
         // Path where the images are
         pathTeleop_ = ros::package::getPath("status_publisher");
@@ -195,6 +203,50 @@ void StatusPublisher::nav_statusCallBack(const actionlib_msgs::GoalStatusArray::
 void StatusPublisher::nav_resultCallBack(const move_base_msgs::MoveBaseActionResult::ConstPtr& nav_result)
 {
         nav_result_ = nav_result->status.status;
+}
+
+
+// Publishes deadline visualization 
+void deadlineCallBack(const std_msgs::Float64::ConstPtr& msg);
+{
+	double time_norm = msg->data;
+	int w = 100;
+	int h = 25;
+	// initialize empty cv matrix as the image container
+	Mat image = Mat::zeros( h, w, CV_8UC3 );
+
+	// draw deadline bargraph if normalized negotiation time is within [0,1]
+	if (time_norm >= 0)
+	{
+		// draw red rectangle, other parts of image are black by default initilization
+		rectangle( image,
+			Point( 0, (int)w*time_norm), // top left corner of rectangle in image
+			Point( h, w), // bottom right corner of rectangle in image 
+			Scalar( 255, 0, 0 ), // red color
+			FILLED, // FILLED equivalent to -1
+			LINE_8 );
+	}
+	// draw gray rectangle if negotiation is not running ie. time_norm = -1
+	else
+	{
+		rectangle( image,
+			Point( 0, 0), // top left corner of rectangle in image
+			Point( h, w), // bottom right corner of rectangle in image 
+			Scalar( 128, 128, 128 ), // gray color
+			FILLED, // FILLED equivalent to -1
+			LINE_8 );
+	}
+	
+	// convert matrix Mat image to cvImage
+	std_msgs::Header header; // empty header
+	header.seq = 0; // user defined counter
+	header.stamp = ros::Time::now(); // time
+	img_bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::RGB8, imgage);
+	// convert cvImage to ROS message
+	sensor_msgs::Image img_msg; // message to be sent
+	img_bridge.toImageMsg(img_msg); // from cv_bridge to sensor_msgs::Image
+	// publish ROS msg
+	deadline_pub_.publish(img_msg); 
 }
 
 

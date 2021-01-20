@@ -29,6 +29,7 @@ NegotiationMI::NegotiationMI(ros::NodeHandle nh, ros::NodeHandle private_nh)
 
 	// Publishers AKA ROS node outputs
 	negotiated_loa_pub_ = nh_.advertise<std_msgs::Int8>("/nemi/negotiated_loa", 1);
+	negotiation_time_pub_ = nh_.advertise<std_msgs::Float64>("/nemi/negotiation_time", 1);
 
 	// Negotiation algorithm main callback function based on a timer.
 	negotiation_algorithm_timer_ = nh_.createTimer(ros::Duration(0.2), &NegotiationMI::timerNegotiationCallback, this, false, false);
@@ -113,7 +114,9 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 	{
 		// agreed_loa is output of negotiation Algorithm: no agreement -> 0, agreement -> option/LOA
 		int agreed_loa = 0;
-
+		// initialize negotiation duration to represent negotiation became unactive 
+		double current_negotiation_duration = -negotiation_deadline_;
+		
 		// differentiate: human started negotiation
 		if (human_suggested_loa_history_ > 0)
 		{
@@ -126,7 +129,7 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 			else
 			{
 				// determine duration since negotiation start
-				double current_negotiation_duration = ros::Time::now().toSec() - time_negotiation_started_;
+				current_negotiation_duration = ros::Time::now().toSec() - time_negotiation_started_;
 				ROS_INFO("current_negotiation_duration: %f",current_negotiation_duration);
 
 				// determine if target utility reached other option's utility
@@ -149,7 +152,7 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 		else // automation started negotiation
 		{
 			// determine duration since negotiation start
-			double current_negotiation_duration = ros::Time::now().toSec() - time_negotiation_started_;
+			current_negotiation_duration = ros::Time::now().toSec() - time_negotiation_started_;
 			ROS_INFO("current_negotiation_duration: %f",current_negotiation_duration);
 			
 
@@ -174,6 +177,12 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 				}
 			}
 		}
+		
+		// publish normalized negotiation time
+		negotiation_time_.data = current_negotiation_duration / negotiation_deadline_;
+		negotiation_time_pub_.publish(negotiation_time_);
+		ROS_INFO("normalized negotiation time: %f", negotiation_time_.data);
+		
 		// if agreement found or deadline reached terminate negotiation
 		if (agreed_loa > 0)
 		{
