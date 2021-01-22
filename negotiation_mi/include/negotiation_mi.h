@@ -5,6 +5,7 @@
 #include <sensor_msgs/LaserScan.h>
 #include <std_msgs/Int8.h>
 #include <std_msgs/Float64.h>
+#include <std_msgs/Bool.h>
 #include <math.h>
 
 class NegotiationMI

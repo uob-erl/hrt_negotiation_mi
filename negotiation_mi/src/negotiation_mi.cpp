@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/LaserScan.h>
 #include <std_msgs/Int8.h>
+#include <std_msgs/Bool.h>
 #include <math.h>
 
 #include "negotiation_mi.h"
@@ -36,8 +37,8 @@ NegotiationMI::NegotiationMI(ros::NodeHandle nh, ros::NodeHandle private_nh)
 	negotiation_algorithm_timer_ = nh_.createTimer(ros::Duration(0.2), &NegotiationMI::timerNegotiationCallback, this, false, false);
 
 	// negotiation specifc initializations. These can be initialized via .launch file if needed instead hard coding.
-	negotiation_deadline_ = 6; // this influenced by delta
-	concession_rate_ = 0.2; // This rate mimics the human based on prior data and it means how "pressure feels to concnet as deadline approaches"
+	negotiation_deadline_ = 6; //default 6 this influenced by delta
+	concession_rate_ = 0.2; // default 0.2 This rate mimics the human based on prior data and it means how "pressure feels to concnet as deadline approaches"
 
 	/* loa states definition
 			-1 	no input
@@ -116,7 +117,7 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 	{
 		// agreed_loa is output of negotiation Algorithm: no agreement -> 0, agreement -> option/LOA
 		int agreed_loa = 0;
-		// initialize negotiation duration to represent negotiation became unactive 
+		// initialize negotiation duration to represent negotiation became inactive 
 		double current_negotiation_duration = -negotiation_deadline_;
 		
 		// differentiate: human started negotiation
@@ -137,7 +138,7 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 				// determine if target utility reached other option's utility
 				if (abs(loa_utility_delta) > 0)
 				{
-					ROS_INFO("Has the delta deminished: %f", (1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) ) ;
+					ROS_INFO("Has the delta diminished: %f", (1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) ) ;
 					if ( (1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) < (1 - abs(loa_utility_delta)))
 					{
 						agreed_loa = human_suggested_loa_history_;
