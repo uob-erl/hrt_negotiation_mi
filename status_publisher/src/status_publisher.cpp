@@ -65,8 +65,8 @@ StatusPublisher::StatusPublisher() : it_(nh_)
         nav_result_sub_ = nh_.subscribe<move_base_msgs::MoveBaseActionResult>("/move_base/result", 1,
                                                                               &StatusPublisher::nav_resultCallBack, this);
         negotiation_time_sub_ = nh_.subscribe<std_msgs::Float64>("/nemi/negotiation_time", 1, &StatusPublisher::deadlineCallBack, this);
-        human_suggested_loa_sub_ = nh_.subscribe("/human_suggested_loa", 5, &StatusPublisher::humanLoaCallback, this);
-        ai_suggested_loa_sub_ = nh_.subscribe("/ai_suggested_loa", 5, &StatusPublisher::aiLoaCallback, this);
+        human_suggested_loa_sub_ = nh_.subscribe("/nemi/human_suggested_loa", 5, &StatusPublisher::humanLoaCallback, this);
+        ai_suggested_loa_sub_ = nh_.subscribe("/nemi/ai_suggested_loa", 5, &StatusPublisher::aiLoaCallback, this);
 
         // publishers
         loa_pub_ = it_.advertise("/robot_status/loa", 1, true);
