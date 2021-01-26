@@ -57,7 +57,10 @@ NegotiationMI::NegotiationMI(ros::NodeHandle nh, ros::NodeHandle private_nh)
 	negotiation_enabled_ = false;
 	negotiation_is_active_ = false;
 	hmi_neg_status_.data = negotiation_enabled_;
-	negotiation_algorithm_timer_.start();
+	hmi_neg_status_pub_.publish(hmi_neg_status_);
+	hmi_neg_time_.data = -1;
+	hmi_neg_time_pub_.publish(hmi_neg_time_);
+	negotiation_algorithm_timer_.start();	
 }
 
 NegotiationMI::~NegotiationMI()
@@ -119,59 +122,46 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 	{
 		// agreed_loa is output of negotiation Algorithm: no agreement -> 0, agreement -> option/LOA
 		int agreed_loa = 0;
-		// initialize negotiation duration to represent negotiation became inactive 
-		double current_negotiation_duration = -negotiation_deadline_;
-		
-		// differentiate: human started negotiation
-		if (human_suggested_loa_history_ > 0)
+		// determine duration since negotiation start
+		double current_negotiation_duration = ros::Time::now().toSec() - time_negotiation_started_;
+		ROS_INFO("current_negotiation_duration: %f",current_negotiation_duration);
+		// publish normalized negotiation time
+		hmi_neg_time_.data = current_negotiation_duration / negotiation_deadline_;
+		hmi_neg_time_pub_.publish(hmi_neg_time_);
+		// check if deadline is reached
+		if (current_negotiation_duration > negotiation_deadline_)
 		{
-			// check if human gave in; equal to changing offer
-			if (human_suggested_loa > 0 && human_suggested_loa != human_suggested_loa_history_)
-			{
-				agreed_loa = human_suggested_loa;
-			}
-			// if human did not give in, check target utility and time
-			else
-			{
-				// determine duration since negotiation start
-				current_negotiation_duration = ros::Time::now().toSec() - time_negotiation_started_;
-				ROS_INFO("current_negotiation_duration: %f",current_negotiation_duration);
-				
-				// determine if target utility reached other option's utility
-				ROS_INFO("Has the delta diminished: %f", (1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) ) ;
-				if ( (1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) < (1 - abs(loa_utility_delta)))
-				{
-					agreed_loa = human_suggested_loa_history_;
-				}
-				// determine if deadline is reached	
-				else if (current_negotiation_duration > negotiation_deadline_)
-				{
-					// if deadline is reached and human offer available -> human choice is applied
-					agreed_loa = human_suggested_loa_history_;
-				}
-			}
-		}
-		else // automation started negotiation
-		{
-			// determine duration since negotiation start
-			current_negotiation_duration = ros::Time::now().toSec() - time_negotiation_started_;
-			ROS_INFO("current_negotiation_duration: %f",current_negotiation_duration);
-			
-
-			// check if deadline is reached
-			if (current_negotiation_duration > negotiation_deadline_)
-			{
-				// if deadline is reached and no human offer found -> automation choice is applied
+			ROS_INFO("deadline is reached at %f s",negotiation_deadline_);
+			if (human_suggested_loa_history_ > 0)
+				agreed_loa = human_suggested_loa_history_;
+			else if (ai_suggested_loa_history_ > 0)
 				agreed_loa = ai_suggested_loa_history_;
+			else
+				agreed_loa = current_loa;
+		} 
+		else
+		{
+			// differentiate: human started negotiation
+			if (human_suggested_loa_history_ > 0)
+			{
+				// check if human gave in; equal to changing offer
+				if (human_suggested_loa > 0 && human_suggested_loa != human_suggested_loa_history_)
+					agreed_loa = human_suggested_loa;
+				// if human did not give in, check target utility and time
+				else
+				{
+					// determine if target utility reached other option's utility
+					ROS_INFO("Has the delta diminished: %f", (1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) ) ;
+					if ( (1 - pow(current_negotiation_duration / negotiation_deadline_, 1 / concession_rate_)) < (1 - abs(loa_utility_delta)))
+						agreed_loa = human_suggested_loa_history_;
+				}
 			}
-			// check for new human offers
-			if (human_suggested_loa > 0)
+			// automation started negotiation: check for new human offers
+			else if (human_suggested_loa > 0)
 			{
 				// check if agreement is found
 				if (human_suggested_loa == ai_suggested_loa_history_)
-				{
 					agreed_loa = human_suggested_loa;
-				}
 				// if no agreement found update human offer history
 				else
 				{
@@ -179,13 +169,8 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 					hmi_loa_human_.data = human_suggested_loa;
 					hmi_loa_human_pub_.publish(hmi_loa_human_);
 				}
-			}
-		}
-		
-		// publish normalized negotiation time
-		hmi_neg_time_.data = current_negotiation_duration / negotiation_deadline_;
-		hmi_neg_time_pub_.publish(hmi_neg_time_);
-		ROS_INFO("normalized negotiation time: %f", hmi_neg_time_.data);
+			} 
+		}	
 		
 		// if agreement found or deadline reached terminate negotiation
 		if (agreed_loa > 0)
@@ -208,6 +193,9 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 			hmi_neg_status_.data = negotiation_enabled_;
 			hmi_neg_status_pub_.publish(hmi_neg_status_);
 			ROS_INFO("negotiation_enabled: %d", hmi_neg_status_.data);
+			// publish negative negotiation time to disable deadline bar graph
+			hmi_neg_time_.data = -1;
+			hmi_neg_time_pub_.publish(hmi_neg_time_);
 		}
 	}
 
