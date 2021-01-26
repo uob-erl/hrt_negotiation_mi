@@ -144,8 +144,10 @@ void NegotiationMI::timerNegotiationCallback(const ros::TimerEvent &)
 			// differentiate: human started negotiation
 			if (human_suggested_loa_history_ > 0)
 			{
-				// check if human gave in; equal to changing offer
-				if (human_suggested_loa > 0 && human_suggested_loa != human_suggested_loa_history_)
+				// check if human gave in (= changing offer) or ai gave in 
+				if (human_suggested_loa > 0 && 
+						(human_suggested_loa != human_suggested_loa_history_ ||
+							human_suggested_loa == ai_suggested_loa))
 					agreed_loa = human_suggested_loa;
 				// if human did not give in, check target utility and time
 				else
