@@ -26,7 +26,7 @@ private:
         image_transport::ImageTransport it_;
         image_transport::Publisher loa_pub_, nav_status_pub_;
         image_transport::Publisher neg_auto_pub_, neg_teleop_pub_;
-        ros::Publisher deadline_pub_; /// conventional publisher not explicitly for ImgageTransport: problem?
+        ros::Publisher deadline_pub_; 
         ros::Subscriber loa_sub_, nav_status_sub_, nav_result_sub_;
         ros::Subscriber negotiation_status_sub_, negotiation_time_sub_;
         ros::Subscriber negotiated_loa_sub_, human_suggested_loa_sub_, ai_suggested_loa_sub_;
@@ -64,9 +64,11 @@ StatusPublisher::StatusPublisher() : it_(nh_)
                                                                          &StatusPublisher::nav_statusCallBack, this);
         nav_result_sub_ = nh_.subscribe<move_base_msgs::MoveBaseActionResult>("/move_base/result", 1,
                                                                               &StatusPublisher::nav_resultCallBack, this);
-        negotiation_time_sub_ = nh_.subscribe<std_msgs::Float64>("/nemi/negotiation_time", 1, &StatusPublisher::deadlineCallBack, this);
-        human_suggested_loa_sub_ = nh_.subscribe("/nemi/human_suggested_loa", 5, &StatusPublisher::humanLoaCallback, this);
-        ai_suggested_loa_sub_ = nh_.subscribe("/nemi/ai_suggested_loa", 5, &StatusPublisher::aiLoaCallback, this);
+        negotiation_status_sub_ = nh_.subscribe("/nemi/negotiation_enabled", 1, &StatusPublisher::negStatusCallback, this);
+		negotiation_time_sub_ = nh_.subscribe("/nemi/negotiation_time", 1, &StatusPublisher::deadlineCallBack, this);
+        human_suggested_loa_sub_ = nh_.subscribe("/nemi/human_suggested_loa", 1, &StatusPublisher::humanLoaCallback, this);
+        ai_suggested_loa_sub_ = nh_.subscribe("/nemi/ai_suggested_loa", 1, &StatusPublisher::aiLoaCallback, this);
+		negotiated_loa_sub_ = nh_.subscribe("/nemi/negotiated_loa", 1, &StatusPublisher::negLoaCallback, this);
 
         // publishers
         loa_pub_ = it_.advertise("/robot_status/loa", 1, true);
@@ -315,13 +317,13 @@ void StatusPublisher::humanLoaCallback(const std_msgs::Int8::ConstPtr &msg)
 {
         if (msg->data == 1)
         {
-                neg_auto_pub_.publish(rosImgAutoHuman_);
-                neg_teleop_pub_.publish(rosImgTeleopAi_);
+                neg_teleop_pub_.publish(rosImgTeleopHuman_);
+                neg_auto_pub_.publish(rosImgAutoAi_);
         }
         else if (msg->data == 2)
         {
-                neg_teleop_pub_.publish(rosImgTeleopHuman_);
-                neg_auto_pub_.publish(rosImgAutoAi_);
+                neg_auto_pub_.publish(rosImgAutoHuman_);
+                neg_teleop_pub_.publish(rosImgTeleopAi_);
         }
 }
 
@@ -330,11 +332,11 @@ void StatusPublisher::aiLoaCallback(const std_msgs::Int8::ConstPtr &msg)
 {
         if (msg->data == 1)
         {
-                neg_auto_pub_.publish(rosImgAutoAi_);
+                neg_teleop_pub_.publish(rosImgTeleopAi_);
         }
         else if (msg->data == 2)
         {
-                neg_teleop_pub_.publish(rosImgTeleopAi_);
+                neg_auto_pub_.publish(rosImgAutoAi_);
         }
 }
 
@@ -353,15 +355,16 @@ void StatusPublisher::negLoaCallback(const std_msgs::Int8::ConstPtr &msg)
 {
         if (msg->data == 1)
         {
-                neg_auto_pub_.publish(rosImgAutoNegLoa_);
-                neg_teleop_pub_.publish(rosImgTeleopDis_);
-        }
-        else if (msg->data == 2)
-        {
                 neg_teleop_pub_.publish(rosImgTeleopNegLoa_);
                 neg_auto_pub_.publish(rosImgAutoDis_);
         }
-        /// currently negotiated shown till new negotiation is enabled -> problem?
+        else if (msg->data == 2)
+        {
+                neg_auto_pub_.publish(rosImgAutoNegLoa_);
+                neg_teleop_pub_.publish(rosImgTeleopDis_);
+        }
+        /// currently negotiated shown till new negotiation is enabled -> problem? 
+		/// maybe show active loa in separate window
 }
 
 // Publishes deadline visualization
