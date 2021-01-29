@@ -33,6 +33,7 @@ private:
         ros::Timer timerPubStatus_;
 
         int nav_status_, nav_result_;
+		double agreement_display_time_, agreement_display_duration_;
         // ROS msg images
         sensor_msgs::Image rosImgAuto_, rosImgTeleop_, rosImgStop_, rosImgCanceled_;
         sensor_msgs::Image rosImgActive_, rosImgSucceeded_, rosImgAborted_;
@@ -57,6 +58,9 @@ StatusPublisher::StatusPublisher() : it_(nh_)
 
         nav_status_ = -1;
         nav_result_ = -1;
+		// Initialise agreement display time and duration in seconds
+		agreement_display_duration_ = 3.0;
+		agreement_display_time_ = 0.0; // 0 indicates no agreement is displayed at the moment
 
         // Subscribers
         loa_sub_ = nh_.subscribe<std_msgs::Int8>("/loa", 1, &StatusPublisher::loaCallBack, this);
@@ -74,7 +78,6 @@ StatusPublisher::StatusPublisher() : it_(nh_)
         loa_pub_ = it_.advertise("/robot_status/loa", 1, true);
         nav_status_pub_ = it_.advertise("/robot_status/nav", 1, true);
         deadline_pub_ = nh_.advertise<sensor_msgs::Image>("/nemi/hmi_neg_deadline", 1);
-        // neg_Auti_pub_ = it_.advertise("/robot_status/nav", 1, true);
         neg_auto_pub_ = it_.advertise("/nemi/hmi_auto", 1, true);
         neg_teleop_pub_ = it_.advertise("/nemi/hmi_teleop", 1, true);
         timerPubStatus_ = nh_.createTimer(ros::Duration(0.100), &StatusPublisher::timerPubStatusCallback, this);
@@ -347,6 +350,7 @@ void StatusPublisher::negStatusCallback(const std_msgs::Bool::ConstPtr &msg)
         {
                 neg_auto_pub_.publish(rosImgAutoEn_);
                 neg_teleop_pub_.publish(rosImgTeleopEn_);
+				agreement_display_time_ = 0.0;
         }
 }
 
@@ -357,14 +361,14 @@ void StatusPublisher::negLoaCallback(const std_msgs::Int8::ConstPtr &msg)
         {
                 neg_teleop_pub_.publish(rosImgTeleopNegLoa_);
                 neg_auto_pub_.publish(rosImgAutoDis_);
+				agreement_display_time_ = ros::Time::now().toSec();
         }
         else if (msg->data == 2)
         {
                 neg_auto_pub_.publish(rosImgAutoNegLoa_);
                 neg_teleop_pub_.publish(rosImgTeleopDis_);
+				agreement_display_time_ = ros::Time::now().toSec();
         }
-        /// currently negotiated shown till new negotiation is enabled -> problem? 
-		/// maybe show active loa in separate window
 }
 
 // Publishes deadline visualization
@@ -441,6 +445,17 @@ void StatusPublisher::timerPubStatusCallback(const ros::TimerEvent &)
         {
                 //ROS_INFO("Status Something else?? Check /move_base/status for code");
         }
+		
+		// Change from displaying agreement to disabled negotiation options
+		if (agreement_display_time_ > 0)
+		{
+			if (ros::Time::now().toSec() - agreement_display_time_ > agreement_display_duration_)
+			{
+				neg_auto_pub_.publish(rosImgAutoDis_);
+                neg_teleop_pub_.publish(rosImgTeleopDis_);
+				agreement_display_time_ = 0.0;
+			}
+		}	
 }
 
 int main(int argc, char **argv)
