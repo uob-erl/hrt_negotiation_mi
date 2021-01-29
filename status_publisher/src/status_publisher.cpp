@@ -108,10 +108,10 @@ StatusPublisher::StatusPublisher() : it_(nh_)
         pathCanceled_.append("/images/canceled.png");
 
         pathTeleopDis_ = ros::package::getPath("status_publisher");
-        pathTeleopDis_.append("/images/teleop_gray.png");
+        pathTeleopDis_.append("/images/teleop_black.png");
 
         pathTeleopEn_ = ros::package::getPath("status_publisher");
-        pathTeleopEn_.append("/images/teleop_lightblue.png");
+        pathTeleopEn_.append("/images/teleop_gray.png");
 
         pathTeleopAi_ = ros::package::getPath("status_publisher");
         pathTeleopAi_.append("/images/teleop_blue.png");
@@ -123,10 +123,10 @@ StatusPublisher::StatusPublisher() : it_(nh_)
         pathTeleopNegLoa_.append("/images/teleop_green.png");
 
         pathAutoDis_ = ros::package::getPath("status_publisher");
-        pathAutoDis_.append("/images/auto_gray.png");
+        pathAutoDis_.append("/images/auto_black.png");
 
         pathAutoEn_ = ros::package::getPath("status_publisher");
-        pathAutoEn_.append("/images/auto_lightblue.png");
+        pathAutoEn_.append("/images/auto_gray.png");
 
         pathAutoAi_ = ros::package::getPath("status_publisher");
         pathAutoAi_.append("/images/auto_blue.png");
