@@ -41,7 +41,7 @@ NegotiationMI::NegotiationMI(ros::NodeHandle nh, ros::NodeHandle private_nh)
 	negotiation_algorithm_timer_ = nh_.createTimer(ros::Duration(0.2), &NegotiationMI::timerNegotiationCallback, this, false, false);
 
 	// negotiation specifc initializations. These can be initialized via .launch file if needed instead hard coding.
-	negotiation_deadline_ = 6; //default 6 this influenced by delta
+	negotiation_deadline_ = 4; //default 6 this influenced by delta
 	concession_rate_ = 0.2;	   // default 0.2 This rate mimics the human based on prior data and it means how "pressure feels to concnet as deadline approaches"
 
 	/* loa states definition
@@ -94,6 +94,7 @@ void NegotiationMI::loaUtilityDeltaCallback(const std_msgs::Float64::ConstPtr &m
 }
 
 // This reads and stores the up-to-date goal directed motion error
+// additionally calculates the utility values and utility delta.
 void NegotiationMI::goalDirectedErrorCallback(const std_msgs::Float64::ConstPtr &msg)
 {
 	goal_directed_error_ = msg->data;
@@ -101,7 +102,7 @@ void NegotiationMI::goalDirectedErrorCallback(const std_msgs::Float64::ConstPtr 
 	utility_current_loa_ = 1 - (goal_directed_error_ * 10);
 	utility_delta_ = abs(utility_current_loa_ - utility_alternative_loa_);
 	utility_delta_msg_.data = utility_delta_;
-	loa_delta_pub_.publish(utility_delta_msg_);
+	// loa_delta_pub_.publish(utility_delta_msg_);
 }
 
 // This reads and stores the up-to-date LOA suggested by human/operator
@@ -109,6 +110,11 @@ void NegotiationMI::humanLoaCallback(const std_msgs::Int8::ConstPtr &msg)
 {
 	human_suggested_loa_ = msg->data;
 	ROS_INFO("human_suggested_loa: %d", human_suggested_loa_);
+
+	if (negotiation_enabled_ == false)
+	{
+		loa_delta_pub_.publish(utility_delta_msg_);
+	}
 }
 
 // This reads and stores the up-to-date LOA suggested by the AI
@@ -116,6 +122,11 @@ void NegotiationMI::aiLoaCallback(const std_msgs::Int8::ConstPtr &msg)
 {
 	ai_suggested_loa_ = msg->data;
 	ROS_INFO("ai_suggested_loa: %d", ai_suggested_loa_);
+
+		if (negotiation_enabled_ == false)
+	{
+		loa_delta_pub_.publish(utility_delta_msg_);
+	}
 }
 
 // The main negotiation algorithm were magic happens
