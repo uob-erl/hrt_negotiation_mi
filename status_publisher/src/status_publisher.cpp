@@ -397,8 +397,8 @@ void StatusPublisher::deadlineCallBack(const std_msgs::Float64::ConstPtr &msg)
                 cv::rectangle(image,
                           cv::Point(0, 0),           // top left corner of rectangle in image
                           cv::Point(w, h),           // bottom right corner of rectangle in image
-                         cv::Scalar(128, 128, 128), // gray color
-                         cv::FILLED,                // FILLED equivalent to -1
+                          cv::Scalar(0, 0, 0), 		 // black color
+                          cv::FILLED,                // FILLED equivalent to -1
                           cv::LINE_8);
         }
 
